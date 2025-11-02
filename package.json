@@ -1,0 +1,39 @@
+{
+  "name": "dividend-calculator",
+  "version": "1.0.0",
+  "description": "Calculates the dividends earned and rate of return",
+  "main": "dist/src/main",
+  "scripts": {
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:prod": "node ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/suhastj/dividend-calculator.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/suhastj/dividend-calculator/issues"
+  },
+  "homepage": "https://github.com/suhastj/dividend-calculator#readme",
+  "dependencies": {
+    "@nestjs/common": "^11.1.8",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "^11.1.8",
+    "@nestjs/platform-express": "^11.1.8",
+    "axios": "^1.7.7",
+    "cheerio": "^1.0.0",
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.10",
+    "@nestjs/schematics": "^11.0.9",
+    "@types/cheerio": "^0.22.35",
+    "@types/node": "^24.9.2",
+    "typescript": "^5.9.3"
+  }
+}
