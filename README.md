@@ -98,6 +98,8 @@ Notes:
 - Simple in-memory cache (1 hour) to reduce scraping.
 - Works for ETFs listed on stockanalysis.com.
 - **Automatically saves dividend history to CSV file** in `src/data/{ticker}_dividends.csv` (e.g., `src/data/spy_dividends.csv`).
+- **Smart CSV updates**: If a CSV file already exists, only new dividend entries (after the latest ex-dividend date) are appended.
+- All dividend entries are kept in **descending order** by ex-dividend date (newest first).
 
 ### Batch Processing API
 

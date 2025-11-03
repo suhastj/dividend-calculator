@@ -1,8 +1,9 @@
 import { Injectable, InternalServerErrorException, BadRequestException } from '@nestjs/common';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import { writeFile, mkdir, readFile } from 'fs/promises';
+import { writeFile, mkdir, readFile, access } from 'fs/promises';
 import { join } from 'path';
+import { constants } from 'fs';
 
 type DividendHistory = {
   exDividendDate: string;
@@ -43,6 +44,114 @@ export class StockAnalysisService {
       // If any error occurs, return original string
       return dateStr;
     }
+  }
+
+  /**
+   * Checks if a CSV file exists for the given ticker
+   */
+  private async csvExists(ticker: string, outputDir?: string): Promise<boolean> {
+    try {
+      const baseDir = outputDir 
+        ? join(process.cwd(), outputDir)
+        : join(process.cwd(), 'src', 'data');
+      const filename = `${ticker.toLowerCase()}_dividends.csv`;
+      const filePath = join(baseDir, filename);
+      await access(filePath, constants.F_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Reads existing CSV file and returns dividend history
+   */
+  private async readExistingCsv(ticker: string, outputDir?: string): Promise<DividendHistory[]> {
+    try {
+      const baseDir = outputDir 
+        ? join(process.cwd(), outputDir)
+        : join(process.cwd(), 'src', 'data');
+      const filename = `${ticker.toLowerCase()}_dividends.csv`;
+      const filePath = join(baseDir, filename);
+      
+      const content = await readFile(filePath, 'utf-8');
+      const lines = content.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        return [];
+      }
+
+      const dividends: DividendHistory[] = [];
+      // Skip header (first line)
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        // Parse CSV line (handle quoted values)
+        const values = this.parseCsvLine(line);
+        if (values.length >= 4) {
+          dividends.push({
+            exDividendDate: values[0],
+            cashAmount: values[1],
+            recordDate: values[2],
+            payDate: values[3],
+          });
+        }
+      }
+
+      return dividends;
+    } catch (error) {
+      return [];
+    }
+  }
+
+  /**
+   * Parses a CSV line handling quoted values
+   */
+  private parseCsvLine(line: string): string[] {
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        values.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    
+    if (current) {
+      values.push(current.trim());
+    }
+
+    return values;
+  }
+
+  /**
+   * Merges new dividends with existing ones, keeping only new entries after the latest date
+   * Returns merged list in descending order by ex-dividend date
+   */
+  private mergeDividends(existing: DividendHistory[], newData: DividendHistory[]): DividendHistory[] {
+    if (existing.length === 0) {
+      // Sort new data in descending order
+      return newData.sort((a, b) => b.exDividendDate.localeCompare(a.exDividendDate));
+    }
+
+    // Get the latest ex-dividend date from existing data
+    const latestExistingDate = existing[0].exDividendDate;
+
+    // Filter new data to only include entries after the latest existing date
+    const newerEntries = newData.filter(d => d.exDividendDate > latestExistingDate);
+
+    // Combine and sort in descending order
+    const merged = [...newerEntries, ...existing];
+    return merged.sort((a, b) => b.exDividendDate.localeCompare(a.exDividendDate));
   }
 
   async getDividendHistory(ticker: string, outputDir?: string): Promise<DividendHistory[]> {
@@ -132,11 +241,25 @@ export class StockAnalysisService {
         );
       }
 
-      // Save to CSV file (with optional custom directory)
-      await this.saveToCsv(tickerUpper, dividends, outputDir);
+      // Check if CSV already exists
+      const csvFileExists = await this.csvExists(tickerUpper, outputDir);
+      let finalDividends: DividendHistory[];
 
-      this.cache.set(tickerUpper, { expiresAtMs: now + this.defaultTtlMs, data: dividends });
-      return dividends;
+      if (csvFileExists) {
+        // Read existing CSV data
+        const existingData = await this.readExistingCsv(tickerUpper, outputDir);
+        // Merge with new data (only append entries after latest existing date)
+        finalDividends = this.mergeDividends(existingData, dividends);
+      } else {
+        // No existing CSV, just sort new data in descending order
+        finalDividends = dividends.sort((a, b) => b.exDividendDate.localeCompare(a.exDividendDate));
+      }
+
+      // Save to CSV file (with optional custom directory)
+      await this.saveToCsv(tickerUpper, finalDividends, outputDir);
+
+      this.cache.set(tickerUpper, { expiresAtMs: now + this.defaultTtlMs, data: finalDividends });
+      return finalDividends;
     } catch (err: any) {
       if (err instanceof BadRequestException || err instanceof InternalServerErrorException) {
         throw err;

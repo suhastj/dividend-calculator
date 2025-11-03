@@ -38,8 +38,8 @@ export class DividendsController {
 
   // GET /dividends/:ticker/stockanalysis - Scrapes stockanalysis.com for dividend history
   // Must come before :ticker route to avoid route conflict
-  @Get(':ticker/stockanalysis')
-  async getStockAnalysis(@Param('ticker') ticker: string) {
+  @Get(':ticker/dividend-history')
+  async getDividendHistory(@Param('ticker') ticker: string) {
     return this.stockAnalysisService.getDividendHistory(ticker);
   }
 
